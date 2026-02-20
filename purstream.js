@@ -9,14 +9,14 @@ async function searchResults(keyword) {
                 return {
                     title: result.title,
                     image: result.posters.original || result.posters.large || result.posters.small || result.posters.wallpaper,
-                    href: `https://purstream.to/movie/${result.id}-${slugify(result.title)}`
+                    href: `https://purstream.me/movie/${result.id}-${slugify(result.title)}`
                 };
             }
             else if(result.type === "tv") {
                 return {
                     title: result.title,
                     image: result.posters.original || result.posters.large || result.posters.small || result.posters.wallpaper,
-                    href: `https://purstream.to/serie/${result.id}-${slugify(result.title)}`
+                    href: `https://purstream.me/serie/${result.id}-${slugify(result.title)}`
                 };
             }
         });
@@ -47,10 +47,10 @@ async function extractDetails(url) {
             if (!match) throw new Error("Invalid URL format");
 
             const movieId = match[1];
-            const responseText = await soraFetch(`https://api.purstream.to/api/v1/media/${movieId}/sheet`, {
+            const responseText = await soraFetch(`https://api.purstream.me/api/v1/media/${movieId}/sheet`, {
                 headers: {
-                    "Referer": "https://purstream.to/",
-                    "Origin": "https://purstream.to"
+                    "Referer": "https://purstream.me/",
+                    "Origin": "https://purstream.me"
                 }
             });
             const json = await responseText.json();
@@ -69,10 +69,10 @@ async function extractDetails(url) {
             if (!match) throw new Error("Invalid URL format");
 
             const showId = match[1];
-            const responseText = await soraFetch(`https://api.purstream.to/api/v1/media/${showId}/sheet`, {
+            const responseText = await soraFetch(`https://api.purstream.me/api/v1/media/${showId}/sheet`, {
                 headers: {
-                    "Referer": "https://purstream.to/",
-                    "Origin": "https://purstream.to"
+                    "Referer": "https://purstream.me/",
+                    "Origin": "https://purstream.me"
                 }
             });
             const json = await responseText.json();
@@ -115,10 +115,10 @@ async function extractEpisodes(url) {
             if (!match) throw new Error("Invalid URL format");
             const showId = match[1];
 
-            const responseText = await soraFetch(`https://api.purstream.to/api/v1/media/${showId}/sheet`, {
+            const responseText = await soraFetch(`https://api.purstream.me/api/v1/media/${showId}/sheet`, {
                 headers: {
-                    "Referer": "https://purstream.to/",
-                    "Origin": "https://purstream.to"
+                    "Referer": "https://purstream.me/",
+                    "Origin": "https://purstream.me"
                 }
             });
             const json = await responseText.json();
@@ -127,10 +127,10 @@ async function extractEpisodes(url) {
             let allEpisodes = [];
 
             for (let i = 1; i <= data.seasons; i++) {
-                const seasonResponseText = await soraFetch(`https://api.purstream.to/api/v1/media/${showId}/season/${i}`, {
+                const seasonResponseText = await soraFetch(`https://api.purstream.me/api/v1/media/${showId}/season/${i}`, {
                     headers: {
-                        "Referer": "https://purstream.to/",
-                        "Origin": "https://purstream.to"
+                        "Referer": "https://purstream.me/",
+                        "Origin": "https://purstream.me"
                     }
                 });
                 const seasonJson = await seasonResponseText.json();
@@ -187,10 +187,10 @@ async function extractStreamUrl(url) {
         }
 
         if (episodeNumber === "movie") {
-            const response = await soraFetch(`https://api.purstream.to/api/v1/media/${showId}/sheet`, {
+            const response = await soraFetch(`https://api.purstream.me/api/v1/media/${showId}/sheet`, {
                 headers: {
-                    "Referer": "https://purstream.to/",
-                    "Origin": "https://purstream.to",
+                    "Referer": "https://purstream.me/",
+                    "Origin": "https://purstream.me",
                 }
             });
             const json = await response.json();
@@ -209,10 +209,10 @@ async function extractStreamUrl(url) {
                 });
             }
         } else {
-            const response = await soraFetch(`https://api.purstream.to/api/v1/media/${showId}/sheet`, {
+            const response = await soraFetch(`https://api.purstream.me/api/v1/media/${showId}/sheet`, {
                 headers: {
-                    "Referer": "https://purstream.to/",
-                    "Origin": "https://purstream.to"
+                    "Referer": "https://purstream.me/",
+                    "Origin": "https://purstream.me"
                 }
             });
             const json = await response.json();
