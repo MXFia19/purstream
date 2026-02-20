@@ -1,7 +1,7 @@
 async function searchResults(keyword) {
     try {
         const encodedKeyword = encodeURIComponent(keyword);
-        const responseText = await soraFetch(`https://api.purstream.to/api/v1/search-bar/search/${encodedKeyword}`);
+        const responseText = await soraFetch(`https://api.purstream.me/api/v1/search-bar/search/${encodedKeyword}`);
         const data = await responseText.json();
 
         const transformedResults = data.data.items.movies.items.map(result => {
