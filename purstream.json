@@ -2,15 +2,15 @@
     "sourceName": "Purstream",
     "iconUrl": "https://git.luna-app.eu/ibro/services/raw/branch/main/purstream/icon.png",
     "author": {
-        "name": "ibro",
+        "name": "MXFia19",
         "icon": "https://git.luna-app.eu/ibro/services/raw/branch/main/profile.jpg",
-        "url": "https://github.com/xibrox"
+        "url": "https://github.com/MXFia19"
     },
     "version": "1.0.1",
     "language": "French",
     "streamType": "MP4",
     "quality": "1080p",
-    "baseUrl": "https://purstream.to/",
+    "baseUrl": "https://purstream.me/",
     "searchBaseUrl": "https://api.themoviedb.org/3/search/multi?api_key=f3d757824f08ea2cff45eb8f47ca3a1e&query=%s&language=fr-FR&page=1&include_adult=false&sort_by=popularity.desc",
     "scriptUrl": "https://git.luna-app.eu/ibro/services/raw/branch/main/purstream/purstream.js",
     "type": "anime/shows/movies",
