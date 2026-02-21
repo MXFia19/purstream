@@ -165,14 +165,6 @@ async function extractEpisodes(url) {
     }    
 }
 
-// searchResults("breaking bad");
-
-
-// searchResults("breaking bad").then(console.log);
-// extractDetails("https://movix.blog/tv/1396").then(console.log);
-// extractEpisodes("https://movix.blog/tv/1396").then(console.log);
-// extractStreamUrl("https://movix.blog/watch/tv/1396/s/1/e/1").then(console.log);
-
 async function extractStreamUrl(url) {
     try {
         let streams = [];
@@ -206,10 +198,20 @@ async function extractStreamUrl(url) {
             const data = json.data.items;
     
             for (const source of data.urls) {
-                const streamUrl = source.url;
+                // --- DEBUG LOG POUR TROUVER LE TOKEN ---
+                console.log("=== DATA SOURCE MOVIE ===");
+                console.log(JSON.stringify(source));
+                console.log("=========================");
+
+                let streamUrl = source.url;
+
+                // Fallback temporaire pour éviter le crash immédiat du lecteur
+                if (streamUrl && !streamUrl.startsWith('http')) {
+                    streamUrl = streamUrl.startsWith('/') ? `https://purstream.me${streamUrl}` : `https://purstream.me/${streamUrl}`;
+                }
 
                 streams.push({
-                    title: source.name,
+                    title: source.name || "Source 1",
                     streamUrl,
                     headers: {
                         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15"
@@ -228,6 +230,11 @@ async function extractStreamUrl(url) {
             const data = json.data.items;
 
             for (const source of data.urls) {
+                // --- DEBUG LOG POUR TROUVER LE TOKEN ---
+                console.log("=== DATA SOURCE SERIE ===");
+                console.log(JSON.stringify(source));
+                console.log("=========================");
+
                 const pad2 = n => String(n).padStart(2, "0");
 
                 const season = pad2(seasonNumber);
@@ -243,8 +250,13 @@ async function extractStreamUrl(url) {
                     streamUrl = streamUrl.replaceAll("{episode_number}", episode);
                 }
 
+                // Fallback temporaire
+                if (streamUrl && !streamUrl.startsWith('http')) {
+                    streamUrl = streamUrl.startsWith('/') ? `https://purstream.me${streamUrl}` : `https://purstream.me/${streamUrl}`;
+                }
+
                 streams.push({
-                    title: source.name,
+                    title: source.name || "Source 1",
                     streamUrl,
                     headers: {
                         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15"
