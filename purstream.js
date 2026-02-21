@@ -4,23 +4,31 @@ async function searchResults(keyword) {
         const responseText = await soraFetch(`https://api.purstream.me/api/v1/search-bar/search/${encodedKeyword}`);
         const data = await responseText.json();
 
+        // On vérifie que l'API a bien renvoyé des films
+        if (!data?.data?.items?.movies?.items) {
+             return JSON.stringify([]);
+        }
+
         const transformedResults = data.data.items.movies.items.map(result => {
+            
+            // CORRECTION ICI : On utilise les vrais noms fournis par l'API
+            let imgUrl = result.large_poster_path || result.small_poster_path || result.wallpaper_poster_path || "https://via.placeholder.com/300x450/222222/FFFFFF?text=Aucune+Affiche";
+
             if(result.type === "movie") {
                 return {
                     title: result.title,
-                    image: result.posters.original || result.posters.large || result.posters.small || result.posters.wallpaper,
+                    image: imgUrl,
                     href: `https://purstream.me/movie/${result.id}-${slugify(result.title)}`
                 };
             }
             else if(result.type === "tv") {
                 return {
                     title: result.title,
-                    image: result.posters.original || result.posters.large || result.posters.small || result.posters.wallpaper,
+                    image: imgUrl,
                     href: `https://purstream.me/serie/${result.id}-${slugify(result.title)}`
                 };
             }
-        });
-
+        }).filter(Boolean); // Filtre les résultats vides
 
         return JSON.stringify(transformedResults);
     } catch (error) {
