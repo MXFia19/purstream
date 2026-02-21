@@ -11,7 +11,7 @@ async function searchResults(keyword) {
 
         const transformedResults = data.data.items.movies.items.map(result => {
             
-            // CORRECTION ICI : On utilise les vrais noms fournis par l'API
+            // Récupération de l'image (poster)
             let imgUrl = result.large_poster_path || result.small_poster_path || result.wallpaper_poster_path || "https://via.placeholder.com/300x450/222222/FFFFFF?text=Aucune+Affiche";
 
             if(result.type === "movie") {
@@ -173,91 +173,46 @@ async function extractStreamUrl(url) {
         let seasonNumber = "";
         let episodeNumber = "";
 
+        // Récupération des IDs depuis le href généré par extractEpisodes
         if (url.includes('movie')) {
             const [showIdTemp, episodeNumberTemp] = url.split('/');
-
             showId = showIdTemp;
             episodeNumber = episodeNumberTemp;
         } else {
             const [showIdTemp, seasonNumberTemp, episodeNumberTemp] = url.split('/');
-
             showId = showIdTemp;
             seasonNumber = seasonNumberTemp;
             episodeNumber = episodeNumberTemp;
         }
 
+        // Construction de la bonne URL de l'API Stream selon si c'est un film ou une série
+        let apiUrl = "";
         if (episodeNumber === "movie") {
-            const response = await soraFetch(`https://api.purstream.me/api/v1/media/${showId}/sheet`, {
-                headers: {
-                    "Referer": "https://purstream.me/",
-                    "Origin": "https://purstream.me",
-                }
-            });
-            const json = await response.json();
-            
-            const data = json.data.items;
-    
-            for (const source of data.urls) {
-                // --- DEBUG LOG POUR TROUVER LE TOKEN ---
-                console.log("=== DATA SOURCE MOVIE ===");
-                console.log(JSON.stringify(source));
-                console.log("=========================");
-
-                let streamUrl = source.url;
-
-                // Fallback temporaire pour éviter le crash immédiat du lecteur
-                if (streamUrl && !streamUrl.startsWith('http')) {
-                    streamUrl = streamUrl.startsWith('/') ? `https://purstream.me${streamUrl}` : `https://purstream.me/${streamUrl}`;
-                }
-
-                streams.push({
-                    title: source.name || "Source 1",
-                    streamUrl,
-                    headers: {
-                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15"
-                    }
-                });
-            }
+            // API pour les films
+            apiUrl = `https://api.purstream.me/api/v1/stream/${showId}`;
         } else {
-            const response = await soraFetch(`https://api.purstream.me/api/v1/media/${showId}/sheet`, {
-                headers: {
-                    "Referer": "https://purstream.me/",
-                    "Origin": "https://purstream.me"
-                }
-            });
-            const json = await response.json();
+            // API pour les séries
+            apiUrl = `https://api.purstream.me/api/v1/stream/${showId}/episode?season=${seasonNumber}&episode=${episodeNumber}`;
+        }
 
-            const data = json.data.items;
+        // Appel de l'API de streaming pour récupérer le lien direct avec le Token
+        const response = await soraFetch(apiUrl, {
+            headers: {
+                "Referer": "https://purstream.me/",
+                "Origin": "https://purstream.me",
+            }
+        });
+        const json = await response.json();
+        
+        // On récupère le tableau "sources"
+        const sources = json?.data?.items?.sources || [];
 
-            for (const source of data.urls) {
-                // --- DEBUG LOG POUR TROUVER LE TOKEN ---
-                console.log("=== DATA SOURCE SERIE ===");
-                console.log(JSON.stringify(source));
-                console.log("=========================");
-
-                const pad2 = n => String(n).padStart(2, "0");
-
-                const season = pad2(seasonNumber);
-                const episode = pad2(episodeNumber);
-
-                let streamUrl = source.url;
-
-                if (streamUrl.includes("{season_number}")) {
-                    streamUrl = streamUrl.replaceAll("{season_number}", season);
-                }
-
-                if (streamUrl.includes("{episode_number}")) {
-                    streamUrl = streamUrl.replaceAll("{episode_number}", episode);
-                }
-
-                // Fallback temporaire
-                if (streamUrl && !streamUrl.startsWith('http')) {
-                    streamUrl = streamUrl.startsWith('/') ? `https://purstream.me${streamUrl}` : `https://purstream.me/${streamUrl}`;
-                }
-
+        // On ajoute chaque source à notre liste
+        for (const source of sources) {
+            if (source.stream_url) {
                 streams.push({
-                    title: source.name || "Source 1",
-                    streamUrl,
+                    title: source.source_name || "Source 1",
+                    streamUrl: source.stream_url, // Le lien complet avec le token et signature
                     headers: {
                         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15"
                     }
@@ -270,31 +225,28 @@ async function extractStreamUrl(url) {
             subtitles: ""
         };
 
-        console.log(JSON.stringify(results));
         return JSON.stringify(results);
+
     } catch (error) {
         console.log('Fetch error in extractStreamUrl: ' + error);
-
-        const result = {
-            streams: [],
-            subtitles: ""
-        };
-
-        console.log(result);
-        return JSON.stringify(result);
+        return JSON.stringify({ streams: [], subtitles: "" });
     }
 }
 
 async function soraFetch(url, options = { headers: {}, method: 'GET', body: null, encoding: 'utf-8' }) {
     try {
-        return await fetchv2(
-            url,
-            options.headers ?? {},
-            options.method ?? 'GET',
-            options.body ?? null,
-            true,
-            options.encoding ?? 'utf-8'
-        );
+        if (typeof fetchv2 !== 'undefined') {
+            return await fetchv2(
+                url,
+                options.headers ?? {},
+                options.method ?? 'GET',
+                options.body ?? null,
+                true,
+                options.encoding ?? 'utf-8'
+            );
+        } else {
+            return await fetch(url, options);
+        }
     } catch(e) {
         try {
             return await fetch(url, options);
