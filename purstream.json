@@ -3,10 +3,10 @@
     "iconUrl": "https://git.luna-app.eu/ibro/services/raw/branch/main/purstream/icon.png",
     "author": {
         "name": "MXFia19",
-        "icon": "https://git.luna-app.eu/ibro/services/raw/branch/main/profile.jpg",
+        "icon": "",
         "url": "https://github.com/MXFia19"
     },
-    "version": "2.0.1",
+    "version": "3.0.1",
     "language": "French",
     "streamType": "MP4",
     "quality": "1080p",
