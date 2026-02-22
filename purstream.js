@@ -213,10 +213,12 @@ async function extractStreamUrl(url) {
 
 for (const source of sources) {
             if (source.stream_url) {
-                // On allège les en-têtes pour ne pas alerter l'anti-bot de Cloudflare
+                // Le Hack Frankenstein : on fait passer le flux Purstream dans le proxy Nakios
+                const proxyUrl = `https://api.nakios.site/api/sources/proxy?url=${encodeURIComponent(source.stream_url)}`;
+                
                 streams.push({
-                    title: source.source_name || "Serveur Purstream",
-                    streamUrl: source.stream_url,
+                    title: source.source_name ? source.source_name + " (Proxy)" : "Serveur Purstream (Proxy)",
+                    streamUrl: proxyUrl,
                     headers: {
                         "Referer": `https://${domain}/`
                     }
