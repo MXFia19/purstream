@@ -211,13 +211,13 @@ async function extractStreamUrl(url) {
         const json = await response.json();
         const sources = json?.data?.items?.sources || [];
 
-        for (const source of sources) {
+for (const source of sources) {
             if (source.stream_url) {
+                // On allège les en-têtes pour ne pas alerter l'anti-bot de Cloudflare
                 streams.push({
-                    title: source.source_name || "Source 1",
+                    title: source.source_name || "Serveur Purstream",
                     streamUrl: source.stream_url,
                     headers: {
-                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15",
                         "Referer": `https://${domain}/`
                     }
                 });
