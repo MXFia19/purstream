@@ -184,22 +184,13 @@ async function extractEpisodes(url) {
 
 async function extractStreamUrl(url) {
     try {
-        // --- DÉTECTEUR D'IP (DÉBOGAGE) ---
-        try {
-            const ipResponse = await soraFetch('https://api64.ipify.org?format=json');
-            const ipData = await ipResponse.json();
-            console.log(`[Purstream] 🔍 IP utilisée par l'application : ${ipData.ip}`);
-        } catch (e) {
-            console.log(`[Purstream] 🔍 Impossible de vérifier l'IP.`);
-        }
-        // ---------------------------------
-
         const domain = await getWorkingDomain();
         let streams = [];
         let showId = "";
         let seasonNumber = "";
         let episodeNumber = "";
 
+        // On découpe l'URL interne
         if (url.includes('movie')) {
             const parts = url.split('/');
             showId = parts[0];
@@ -211,49 +202,33 @@ async function extractStreamUrl(url) {
             episodeNumber = parts[2];
         }
 
-        const response = await soraFetch(`https://api.${domain}/api/v1/media/${showId}/sheet`, {
+        // On appelle l'API qui GÉNÈRE LE JETON CRYPTÉ
+        let apiUrl = episodeNumber === "movie" 
+            ? `https://api.${domain}/api/v1/stream/${showId}`
+            : `https://api.${domain}/api/v1/stream/${showId}/episode?season=${seasonNumber}&episode=${episodeNumber}`;
+
+        const response = await soraFetch(apiUrl, {
             headers: {
                 "Referer": `https://${domain}/`,
-                "Origin": `https://${domain}`
+                "Origin": `https://${domain}`,
             }
         });
         const json = await response.json();
-        const data = json.data.items;
+        const sources = json?.data?.items?.sources || [];
 
-        for (const source of data.urls) {
-            let streamUrl = source.url;
-
-            // Si c'est une série, on remplit le template (Saison/Épisode)
-            if (episodeNumber !== "movie") {
-                const pad2 = n => String(n).padStart(2, "0");
-                const season = pad2(seasonNumber);
-                const episode = pad2(episodeNumber);
-                
-                if (streamUrl.includes("{season_number}")) {
-                    streamUrl = streamUrl.replaceAll("{season_number}", season);
-                }
-                if (streamUrl.includes("{episode_number}")) {
-                    streamUrl = streamUrl.replaceAll("{episode_number}", episode);
-                }
+        // On récupère le lien officiel avec le fameux ?token=...
+        for (const source of sources) {
+            if (source.stream_url) {
+                streams.push({
+                    title: source.source_name || "Purstream (Ouvrir avec VLC)",
+                    streamUrl: source.stream_url,
+                    headers: {
+                        "Origin": `https://${domain}`,
+                        "Referer": `https://${domain}/`,
+                        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
+                    }
+                });
             }
-
-            // --- CORRECTIF D'URL ABSOLUE ---
-            if (!streamUrl.startsWith('http')) {
-                if (!streamUrl.startsWith('/')) {
-                    streamUrl = '/' + streamUrl;
-                }
-                streamUrl = `https://damp-truth-418f.storage323.workers.dev${streamUrl}`;
-            }
-
-            streams.push({
-                title: source.name || "Serveur Purstream",
-                streamUrl: streamUrl,
-                headers: {
-                    "Referer": `https://${domain}/`,
-                    "Origin": `https://${domain}`,
-                    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
-                }
-            });
         }
 
         return JSON.stringify({ streams, subtitles: "" });
@@ -263,7 +238,6 @@ async function extractStreamUrl(url) {
         return JSON.stringify({ streams: [], subtitles: "" });
     }
 }
-
 async function soraFetch(url, options = { headers: {}, method: 'GET', body: null, encoding: 'utf-8' }) {
     try {
         if (typeof fetchv2 !== 'undefined') {
