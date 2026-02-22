@@ -178,61 +178,104 @@ async function extractEpisodes(url) {
 
 async function extractStreamUrl(url) {
     try {
-        const domain = await getWorkingDomain();
         let streams = [];
+
         let showId = "";
         let seasonNumber = "";
         let episodeNumber = "";
 
         if (url.includes('movie')) {
-            const parts = url.split('/');
-            showId = parts[0];
-            episodeNumber = parts[1];
+            const [showIdTemp, episodeNumberTemp] = url.split('/');
+
+            showId = showIdTemp;
+            episodeNumber = episodeNumberTemp;
         } else {
-            const parts = url.split('/');
-            showId = parts[0];
-            seasonNumber = parts[1];
-            episodeNumber = parts[2];
+            const [showIdTemp, seasonNumberTemp, episodeNumberTemp] = url.split('/');
+
+            showId = showIdTemp;
+            seasonNumber = seasonNumberTemp;
+            episodeNumber = episodeNumberTemp;
         }
 
-        let apiUrl = "";
         if (episodeNumber === "movie") {
-            apiUrl = `https://api.${domain}/api/v1/stream/${showId}`;
-        } else {
-            apiUrl = `https://api.${domain}/api/v1/stream/${showId}/episode?season=${seasonNumber}&episode=${episodeNumber}`;
-        }
+            const response = await soraFetch(`https://api.purstream.to/api/v1/media/${showId}/sheet`, {
+                headers: {
+                    "Referer": "https://purstream.to/",
+                    "Origin": "https://purstream.to",
+                }
+            });
+            const json = await response.json();
+            
+            const data = json.data.items;
+    
+            for (const source of data.urls) {
+                const streamUrl = source.url;
 
-        const response = await soraFetch(apiUrl, {
-            headers: {
-                "Referer": `https://${domain}/`,
-                "Origin": `https://${domain}`,
-            }
-        });
-        const json = await response.json();
-        const sources = json?.data?.items?.sources || [];
-
-for (const source of sources) {
-            if (source.stream_url) {
-                // Le Hack Frankenstein : on fait passer le flux Purstream dans le proxy Nakios
-                const proxyUrl = `https://api.nakios.site/api/sources/proxy?url=${encodeURIComponent(source.stream_url)}`;
-                
                 streams.push({
-                    title: source.source_name ? source.source_name + " (Proxy)" : "Serveur Purstream (Proxy)",
-                    streamUrl: proxyUrl,
+                    title: source.name,
+                    streamUrl,
                     headers: {
-                        "Referer": `https://${domain}/`
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15"
+                    }
+                });
+            }
+        } else {
+            const response = await soraFetch(`https://api.purstream.to/api/v1/media/${showId}/sheet`, {
+                headers: {
+                    "Referer": "https://purstream.to/",
+                    "Origin": "https://purstream.to"
+                }
+            });
+            const json = await response.json();
+
+            const data = json.data.items;
+
+            for (const source of data.urls) {
+                const pad2 = n => String(n).padStart(2, "0");
+
+                const season = pad2(seasonNumber);
+                const episode = pad2(episodeNumber);
+
+                let streamUrl = source.url;
+
+                if (streamUrl.includes("{season_number}")) {
+                    streamUrl = streamUrl.replaceAll("{season_number}", season);
+                }
+
+                if (streamUrl.includes("{episode_number}")) {
+                    streamUrl = streamUrl.replaceAll("{episode_number}", episode);
+                }
+
+                streams.push({
+                    title: source.name,
+                    streamUrl,
+                    headers: {
+                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15"
                     }
                 });
             }
         }
 
-        return JSON.stringify({ streams, subtitles: "" });
+        const results = {
+            streams,
+            subtitles: ""
+        };
 
+        console.log(JSON.stringify(results));
+        return JSON.stringify(results);
     } catch (error) {
         console.log('Fetch error in extractStreamUrl: ' + error);
-        return JSON.stringify({ streams: [], subtitles: "" });
+
+        const result = {
+            streams: [],
+            subtitles: ""
+        };
+
+        console.log(result);
+        return JSON.stringify(result);
     }
 }
+
 
 async function soraFetch(url, options = { headers: {}, method: 'GET', body: null, encoding: 'utf-8' }) {
     try {
