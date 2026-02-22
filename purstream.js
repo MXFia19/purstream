@@ -1,42 +1,52 @@
 let WORKING_DOMAIN = null;
 
-async function getWorkingDomain() {
-    if (WORKING_DOMAIN) return WORKING_DOMAIN; 
-
+// 1. Récupère TOUS les domaines sur le wiki (comme Anime-Sama)
+async function getDomainsList() {
     try {
-        console.log("[Purstream] Recherche de l'URL officielle sur purstream.wiki...");
+        console.log("[Purstream] Récupération de la liste des domaines sur purstream.wiki...");
         const response = await soraFetch("https://purstream.wiki/");
         const html = await response.text();
-        const match = html.match(/https:\/\/(purstream\.[a-z]+)/);
+
+        const domainRegex = /https:\/\/(purstream\.[a-z]+)/g;
+        const domains = new Set(); // Set évite les doublons
+        let match;
         
-        if (match && match[1]) {
-            WORKING_DOMAIN = match[1]; // Ex: purstream.me
-            console.log(`[Purstream] Domaine officiel trouvé : ${WORKING_DOMAIN}`);
-            return WORKING_DOMAIN;
+        while ((match = domainRegex.exec(html)) !== null) {
+            domains.add(match[1]);
+        }
+
+        const domainsArray = Array.from(domains);
+        if (domainsArray.length > 0) {
+            console.log(`[Purstream] Domaines trouvés : ${domainsArray.join(', ')}`);
+            return domainsArray;
         } else {
-            throw new Error("Impossible de trouver le domaine sur le wiki.");
+            return ["purstream.me"];
         }
     } catch (err) {
-        console.log(`[Purstream] Échec du wiki. Utilisation du domaine de secours. Erreur: ${err}`);
-        WORKING_DOMAIN = "purstream.me"; 
-        return WORKING_DOMAIN;
+        console.log(`[Purstream] Erreur wiki, fallback sur purstream.me`);
+        return ["purstream.me"];
     }
 }
 
-async function searchResults(keyword) {
+// Fonction utilitaire pour garantir qu'on a un domaine pour les autres fonctions
+async function getWorkingDomain() {
+    if (WORKING_DOMAIN) return WORKING_DOMAIN; 
+    const domains = await getDomainsList();
+    WORKING_DOMAIN = domains[0];
+    return WORKING_DOMAIN;
+}
+
+// 2. Fonction de recherche dédiée à un seul domaine (comme Anime-Sama)
+async function trySearch(domain, encodedKeyword) {
     try {
-        const domain = await getWorkingDomain();
-        const encodedKeyword = encodeURIComponent(keyword);
-        
-        // Appel API avec le domaine dynamique
         const responseText = await soraFetch(`https://api.${domain}/api/v1/search-bar/search/${encodedKeyword}`);
         const data = await responseText.json();
 
         if (!data?.data?.items?.movies?.items) {
-             return JSON.stringify([]);
+             return [];
         }
 
-        const transformedResults = data.data.items.movies.items.map(result => {
+        return data.data.items.movies.items.map(result => {
             let imgUrl = result.large_poster_path || result.small_poster_path || result.wallpaper_poster_path || "https://via.placeholder.com/300x450/222222/FFFFFF?text=Aucune+Affiche";
 
             if(result.type === "movie") {
@@ -54,8 +64,41 @@ async function searchResults(keyword) {
                 };
             }
         }).filter(Boolean);
+    } catch (error) {
+        return []; // Retourne un tableau vide si le domaine est mort
+    }
+}
 
-        return JSON.stringify(transformedResults);
+// 3. Le cerveau de la recherche : teste les domaines en cascade
+async function searchResults(keyword) {
+    try {
+        const domains = await getDomainsList();
+        const encodedKeyword = encodeURIComponent(keyword);
+        
+        // On teste le premier domaine
+        const firstDomain = domains[0];
+        const firstResult = await trySearch(firstDomain, encodedKeyword);
+        
+        if (firstResult && firstResult.length > 0) {
+            WORKING_DOMAIN = firstDomain; // On verrouille ce domaine pour le reste !
+            return JSON.stringify(firstResult);
+        }
+
+        // Si le 1er échoue, on teste les autres en parallèle
+        const otherDomains = domains.slice(1);
+        if (otherDomains.length > 0) {
+            const promises = otherDomains.map(domain => trySearch(domain, encodedKeyword));
+            const results = await Promise.all(promises);
+
+            for (let i = 0; i < results.length; i++) {
+                if (results[i] && results[i].length > 0) {
+                    WORKING_DOMAIN = otherDomains[i]; // On verrouille le domaine victorieux !
+                    return JSON.stringify(results[i]);
+                }
+            }
+        }
+
+        return JSON.stringify([]);
     } catch (error) {
         console.log('Fetch error in searchResults: ' + error);
         return JSON.stringify([]);
@@ -190,7 +233,6 @@ async function extractStreamUrl(url) {
         let seasonNumber = "";
         let episodeNumber = "";
 
-        // On découpe l'URL interne
         if (url.includes('movie')) {
             const parts = url.split('/');
             showId = parts[0];
@@ -202,7 +244,6 @@ async function extractStreamUrl(url) {
             episodeNumber = parts[2];
         }
 
-        // On appelle l'API qui GÉNÈRE LE JETON CRYPTÉ
         let apiUrl = episodeNumber === "movie" 
             ? `https://api.${domain}/api/v1/stream/${showId}`
             : `https://api.${domain}/api/v1/stream/${showId}/episode?season=${seasonNumber}&episode=${episodeNumber}`;
@@ -216,7 +257,6 @@ async function extractStreamUrl(url) {
         const json = await response.json();
         const sources = json?.data?.items?.sources || [];
 
-        // On récupère le lien officiel avec le fameux ?token=...
         for (const source of sources) {
             if (source.stream_url) {
                 streams.push({
@@ -238,6 +278,7 @@ async function extractStreamUrl(url) {
         return JSON.stringify({ streams: [], subtitles: "" });
     }
 }
+
 async function soraFetch(url, options = { headers: {}, method: 'GET', body: null, encoding: 'utf-8' }) {
     try {
         if (typeof fetchv2 !== 'undefined') {
