@@ -26,36 +26,78 @@ async function getWorkingDomain() {
 async function searchResults(keyword) {
     try {
         const domain = await getWorkingDomain();
-        const encodedKeyword = encodeURIComponent(keyword);
-        
-        // Appel API avec le domaine dynamique
-        const responseText = await soraFetch(`https://api.${domain}/api/v1/search-bar/search/${encodedKeyword}`);
+        const cleanKeyword = keyword.trim().toLowerCase();
+        let apiUrl = "";
+        let isCatalog = false;
+
+        // --- GESTION DES COMMANDES SPÉCIALES ---
+        if (cleanKeyword === "!anime") {
+            // Derniers animes ajoutés
+            apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=recently-added&types=anime&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
+            isCatalog = true;
+        } else if (cleanKeyword === "!movie" || cleanKeyword === "!film") {
+            // Derniers films ajoutés
+            apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=recently-added&types=movie&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
+            isCatalog = true;
+        } else if (cleanKeyword === "!serie" || cleanKeyword === "!tv") {
+            // Dernières séries ajoutées
+            apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=recently-added&types=tv&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
+            isCatalog = true;
+        } else if (cleanKeyword === "!top") {
+            // Les mieux notés (Films et Séries)
+            apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=best-rated&types=*&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
+            isCatalog = true;
+        } else if (cleanKeyword === "!trend" || cleanKeyword === "!populaire") {
+            // Les plus vus
+            apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=most-viewed&types=*&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
+            isCatalog = true;
+        } else if (cleanKeyword === "!new") {
+            // Les toutes dernières nouveautés (Toutes catégories)
+            apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=newest&types=*&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
+            isCatalog = true;
+        } else {
+            // --- RECHERCHE NORMALE ---
+            const encodedKeyword = encodeURIComponent(keyword);
+            apiUrl = `https://api.${domain}/api/v1/search-bar/search/${encodedKeyword}`;
+        }
+
+        const responseText = await soraFetch(apiUrl);
         const data = await responseText.json();
 
-        if (!data?.data?.items?.movies?.items) {
+        let items = [];
+
+        // L'API Catalogue et l'API Recherche n'ont pas la même structure JSON
+        if (isCatalog) {
+            // Le catalogue met les résultats dans un tableau paginé
+            items = data?.data?.items || data?.data?.data || data?.data || [];
+        } else {
+            // La recherche normale met les résultats profondément dans 'movies.items'
+            items = data?.data?.items?.movies?.items || [];
+        }
+
+        if (!items || items.length === 0) {
              return JSON.stringify([]);
         }
 
-        const transformedResults = data.data.items.movies.items.map(result => {
-            let imgUrl = result.large_poster_path || result.small_poster_path || result.wallpaper_poster_path || "https://via.placeholder.com/300x450/222222/FFFFFF?text=Aucune+Affiche";
+        const transformedResults = items.map(result => {
+            // On récupère la meilleure image disponible
+            let imgUrl = result.large_poster_path || result.small_poster_path || result.wallpaper_poster_path || result.poster_path || "https://via.placeholder.com/300x450/222222/FFFFFF?text=Aucune+Affiche";
 
-            if(result.type === "movie") {
-                return {
-                    title: result.title,
-                    image: imgUrl,
-                    href: `https://${domain}/movie/${result.id}-${slugify(result.title)}`
-                };
-            }
-            else if(result.type === "tv") {
-                return {
-                    title: result.title,
-                    image: imgUrl,
-                    href: `https://${domain}/serie/${result.id}-${slugify(result.title)}`
-                };
-            }
+            // On s'assure que le titre existe
+            let title = result.title || result.name || "Titre inconnu";
+
+            // On détermine si on doit créer un lien /movie/ ou /serie/
+            let hrefType = (result.type === "movie") ? "movie" : "serie";
+
+            return {
+                title: title,
+                image: imgUrl,
+                href: `https://${domain}/${hrefType}/${result.id}-${slugify(title)}`
+            };
         }).filter(Boolean);
 
         return JSON.stringify(transformedResults);
+        
     } catch (error) {
         console.log('Fetch error in searchResults: ' + error);
         return JSON.stringify([]);
