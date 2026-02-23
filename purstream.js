@@ -32,27 +32,21 @@ async function searchResults(keyword) {
 
         // --- GESTION DES COMMANDES SPÉCIALES ---
         if (cleanKeyword === "!anime") {
-            // Derniers animes ajoutés
             apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=recently-added&types=anime&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
             isCatalog = true;
         } else if (cleanKeyword === "!movie" || cleanKeyword === "!film") {
-            // Derniers films ajoutés
             apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=recently-added&types=movie&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
             isCatalog = true;
         } else if (cleanKeyword === "!serie" || cleanKeyword === "!tv") {
-            // Dernières séries ajoutées
             apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=recently-added&types=tv&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
             isCatalog = true;
         } else if (cleanKeyword === "!top") {
-            // Les mieux notés (Films et Séries)
             apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=best-rated&types=*&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
             isCatalog = true;
         } else if (cleanKeyword === "!trend" || cleanKeyword === "!populaire") {
-            // Les plus vus
             apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=most-viewed&types=*&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
             isCatalog = true;
         } else if (cleanKeyword === "!new") {
-            // Les toutes dernières nouveautés (Toutes catégories)
             apiUrl = `https://api.${domain}/api/v1/catalog/movies?page=1&sortBy=newest&types=*&categoriesIds=*&franchisesIds=*&displayMode=large&perPage=20`;
             isCatalog = true;
         } else {
@@ -64,34 +58,48 @@ async function searchResults(keyword) {
         const responseText = await soraFetch(apiUrl);
         const data = await responseText.json();
 
+        // --- FONCTION CHERCHEUSE DE TABLEAU (Le Labyrinthe) ---
+        function findArrayInObject(obj) {
+            if (Array.isArray(obj)) return obj;
+            if (obj && typeof obj === 'object') {
+                for (let key in obj) {
+                    if (Array.isArray(obj[key])) return obj[key];
+                    let found = findArrayInObject(obj[key]);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
         let items = [];
 
-        // L'API Catalogue et l'API Recherche n'ont pas la même structure JSON
         if (isCatalog) {
-            // Le catalogue met les résultats dans un tableau paginé
-            items = data?.data?.items || data?.data?.data || data?.data || [];
+            items = findArrayInObject(data) || [];
         } else {
-            // La recherche normale met les résultats profondément dans 'movies.items'
             items = data?.data?.items?.movies?.items || [];
         }
 
-        if (!items || items.length === 0) {
+        // Sécurité finale
+        if (!Array.isArray(items) || items.length === 0) {
              return JSON.stringify([]);
         }
 
+        // --- TRANSFORMATION DES RÉSULTATS ---
         const transformedResults = items.map(result => {
-            // On récupère la meilleure image disponible
             let imgUrl = result.large_poster_path || result.small_poster_path || result.wallpaper_poster_path || result.poster_path || "https://via.placeholder.com/300x450/222222/FFFFFF?text=Aucune+Affiche";
-
-            // On s'assure que le titre existe
             let title = result.title || result.name || "Titre inconnu";
-
-            // On détermine si on doit créer un lien /movie/ ou /serie/
             let hrefType = (result.type === "movie") ? "movie" : "serie";
+
+            // Si l'API catalogue ne renvoie pas le champ "type", on essaie de le deviner
+            if (!result.type && isCatalog) {
+                if (cleanKeyword === "!anime" || cleanKeyword === "!serie" || cleanKeyword === "!tv") hrefType = "serie";
+                if (cleanKeyword === "!movie" || cleanKeyword === "!film") hrefType = "movie";
+            }
 
             return {
                 title: title,
                 image: imgUrl,
+                // C'est ici que slugify est utilisé !
                 href: `https://${domain}/${hrefType}/${result.id}-${slugify(title)}`
             };
         }).filter(Boolean);
@@ -104,6 +112,7 @@ async function searchResults(keyword) {
     }
 }
 
+// --- LA FAMEUSE FONCTION MANQUANTE ---
 function slugify(title) {
     return title
       .toLowerCase()
@@ -232,7 +241,6 @@ async function extractStreamUrl(url) {
         let seasonNumber = "";
         let episodeNumber = "";
 
-        // On découpe l'URL interne
         if (url.includes('movie')) {
             const parts = url.split('/');
             showId = parts[0];
@@ -244,7 +252,6 @@ async function extractStreamUrl(url) {
             episodeNumber = parts[2];
         }
 
-        // On appelle l'API qui GÉNÈRE LE JETON CRYPTÉ
         let apiUrl = episodeNumber === "movie" 
             ? `https://api.${domain}/api/v1/stream/${showId}`
             : `https://api.${domain}/api/v1/stream/${showId}/episode?season=${seasonNumber}&episode=${episodeNumber}`;
@@ -258,7 +265,6 @@ async function extractStreamUrl(url) {
         const json = await response.json();
         const sources = json?.data?.items?.sources || [];
 
-        // On récupère le lien officiel avec le fameux ?token=...
         for (const source of sources) {
             if (source.stream_url) {
                 streams.push({
@@ -280,6 +286,7 @@ async function extractStreamUrl(url) {
         return JSON.stringify({ streams: [], subtitles: "" });
     }
 }
+
 async function soraFetch(url, options = { headers: {}, method: 'GET', body: null, encoding: 'utf-8' }) {
     try {
         if (typeof fetchv2 !== 'undefined') {
